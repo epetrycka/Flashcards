@@ -2,3 +2,12 @@ flask
 sqlalchemy
 pymysql
 cryptography
+uvicorn
+pydantic
+bcrypt
+requests
+pika
+pydantic[email]
+werkzeug
+python-dotenv
+gunicorn

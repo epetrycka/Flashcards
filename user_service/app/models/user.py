@@ -4,10 +4,11 @@ from core.database import Base
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer(), primary_key=True)
-    name = Column(String(10))
-    fullname = Column(String(10))
-    nickname = Column(String(10))
+    id = Column(Integer(), primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    fullname = Column(String(255), nullable=False)
+    nickname = Column(String(255), nullable=False)
+    hashedPassword = Column(String(255), nullable=False)
 
     #optional method
     def __repr__(self):

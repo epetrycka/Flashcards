@@ -1,18 +1,12 @@
-from core.database import engine
-from models.user import Base, User 
-from sqlalchemy.orm import sessionmaker
+from flask import Flask
+from core.database import Base, engine
+from api.v1.routes.auth import user_router
 
-Base.metadata.create_all(engine)
-Session = sessionmaker(bind=engine)
-session = Session()
+app = Flask(__name__)
 
-new_user = User(name="Jan", fullname="Marcin", nickname="wolder")
-session.add(new_user)
+Base.metadata.create_all(bind=engine)
 
-User.__table__.drop(engine)
+app.register_blueprint(user_router, url_prefix="/api/v1")
 
-session.commit()
-
-session.close()
-
-print("Tabele zostały utworzone, a dane zostały zapisane.")
+if __name__ == "__main__":
+    app.run(debug=True, port=8001)
