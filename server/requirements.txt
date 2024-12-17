@@ -1,0 +1,8 @@
+fastapi==0.85.1
+uvicorn[standard]==0.18.3
+SQLAlchemy==1.4.41 
+mysql-connector-python 
+pydantic
+pymysql
+cryptography
+#pip install -r requirements.txt
