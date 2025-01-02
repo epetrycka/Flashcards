@@ -24,6 +24,7 @@ services:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_USER: admin
       MYSQL_PASSWORD: root
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
     ports:
       - "3306:3306"
     volumes:
