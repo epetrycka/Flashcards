@@ -1,7 +1,9 @@
 fastapi
 uvicorn
-sqlalchemy[asyncio]
-aio-pika
+sqlalchemy
+pymysql
+passlib
 python-dotenv
-bcrypt
-pyodbc
+pydantic[email]
+cryptography
+alembic

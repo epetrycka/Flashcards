@@ -1,18 +1,19 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from app.models import Base
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
+from app.config import settings
 import os
+from dotenv import load_dotenv
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+load_dotenv("../../.env")
 
-engine = create_async_engine(DATABASE_URL, echo=True)
+DATABASE_URL: str = os.getenv("DATABASE_URL")
 
-SessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL is not set in the environment")
 
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+engine = create_engine(settings.DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
-async def get_db():
-    async with SessionLocal() as session:
-        yield session
+def create_tables():
+    Base.metadata.create_all(bind=engine)

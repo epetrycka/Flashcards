@@ -1,15 +1,15 @@
 from fastapi import FastAPI
-from app.routes.user import router as user_router
-from app.services.database import init_db
+from app.services.database import create_tables
+from app.routers.user import router
 
 app = FastAPI()
 
-app.include_router(user_router, prefix="/users", tags=["Users"])
+app.include_router(router)
 
 @app.on_event("startup")
-async def startup():
-    await init_db()
+def startup():
+    create_tables()
 
 @app.get("/")
-def read_root():
-    return {"message" : "User Service is running"}
+def root():
+    return {"message" : "UserService is running"}
