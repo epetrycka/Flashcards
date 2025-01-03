@@ -20,3 +20,9 @@ class User(Base):
 
     def __repr__(self):
         return f"<User(nickname='{self.nickname}', email='{self.email}')>"
+    
+class Test(Base):
+    __tablename__ = "test"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    text = Column(Text, nullable=True)
