@@ -8,6 +8,7 @@ app.include_router(router)
 
 @app.on_event("startup")
 def startup():
+    print("Starting application...")
     create_tables()
 
 @app.get("/")
