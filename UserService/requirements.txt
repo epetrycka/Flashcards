@@ -7,6 +7,4 @@ python-dotenv
 pydantic[email]
 cryptography
 alembic
-python-jose[cryptography]
-bcrypt
-jwt
+websockets

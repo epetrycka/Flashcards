@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from app import schemas, models
 from app.services import auth
@@ -6,6 +6,10 @@ from app.services.database import SessionLocal
 from fastapi.security import OAuth2PasswordBearer
 from app.services.auth import verify_access_token
 import re
+from app.services.auth import create_refresh_token
+import asyncio
+import websockets
+from app.config import settings
 
 router = APIRouter(prefix="/user", tags=["User"])
 
@@ -18,17 +22,16 @@ def get_db():
     finally:
         db.close()
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+async def notify_websocket_service(access_token):
+    url = settings.WEBSOCKETS_URL
     try:
-        payload = verify_access_token(token)
-        user = db.query(models.User).filter(models.User.id == payload["user_id"]).first()
-        if user is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        return user
+        async with websockets.connect(url) as websocket:
+            await websocket.send(access_token)
+            response = await websocket.recv()
+            print(f"WebSocket response: {response}")
     except Exception as e:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        print(f"Error connecting to WebSocket Service: {e}")
 
-# Register user
 @router.post("/register", response_model=schemas.UserResponse)
 def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     if db.query(models.User).filter(models.User.email == user.email).first():
@@ -56,50 +59,23 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 # Login user and generate JWT
 @router.post("/login")
-def login_user(user: schemas.UserLogin, db: Session = Depends(get_db)):
+def login_user(user: schemas.UserLogin, db: Session = Depends(get_db), response: Response = None):
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if not db_user or not auth.verify_password(user.password, db_user.hashedPassword):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    
-    access_token = auth.create_access_token(data={"user_id": db_user.id})
-    refresh_token = auth.create_refresh_token(data={"user_id": db_user.id})
-    
-    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+        
+    access_token = create_refresh_token(data={"sub": db_user.email})
+    response.set_cookie(key="access_token", value=access_token, httponly=True)
 
-@router.post("/refresh")
-def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
-    try:
-        payload = verify_access_token(refresh_token)
-        user = db.query(models.User).filter(models.User.id == payload["user_id"]).first()
-        if user is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
+    asyncio.create_task(notify_websocket_service(access_token))
 
-        new_access_token = auth.create_access_token(data={"user_id": user.id})
-        return {"access_token": new_access_token, "token_type": "bearer"}
-    
-    except Exception as e:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-
+    return {"message": "Login successful", "access_token": access_token}
 
 # Get user profile
 @router.get("/profile", response_model=schemas.UserResponse)
 def get_profile(current_user: models.User = Depends(get_current_user)):
     return current_user
 
-# Change password
-@router.post("/change-password")
-def change_password(change_data: schemas.ChangePassword, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if not auth.verify_password(change_data.old_password, current_user.hashedPassword):
-        raise HTTPException(status_code=400, detail="Incorrect old password")
-
-    hashed_new_password = auth.hash_password(change_data.new_password)
-    current_user.hashedPassword = hashed_new_password
-    db.commit()
-    db.refresh(current_user)
-    
-    return {"message": "Password updated successfully"}
-
-# Delete user
 @router.delete("/delete", response_model=schemas.UserResponse)
 def delete_user(user_id: int, confirmation: schemas.UserDelete, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if not confirmation.confirmation:
@@ -117,32 +93,40 @@ def delete_user(user_id: int, confirmation: schemas.UserDelete, db: Session = De
 
     return user
 
-# Change avatar
-@router.put("/change-avatar", response_model=schemas.UserResponse)
-def change_avatar(user_id: int, avatar_data: schemas.ChangeAvatar, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.id != user_id:
-        raise HTTPException(status_code=400, detail="You can only change your own avatar")
+# @router.post("/change-password")
+# def change_password(change_data: schemas.ChangePassword, db: Session = Depends(get_db)):
+#     user = db.query(models.User).filter(models.User.email == change_data.email).first()
     
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+#     if not user or not auth.verify_password(change_data.old_password, user.hashedPassword):
+#         raise HTTPException(status_code=400, detail="Incorrect old password")
 
-    user.profile_picture = avatar_data.profile_picture
-    db.commit()
-    db.refresh(user)
-    return user
+#     hashed_new_password = auth.hash_password(change_data.new_password)
 
-# Change bio
-@router.put("/change-bio", response_model=schemas.UserResponse)
-def change_bio(user_id: int, bio_data: schemas.ChangeBio, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.id != user_id:
-        raise HTTPException(status_code=400, detail="You can only change your own bio")
+#     user.hashedPassword = hashed_new_password
+#     db.commit()
+#     db.refresh(user)
     
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+#     return {"message": "Password updated successfully"}
 
-    user.biography = bio_data.biography
-    db.commit()
-    db.refresh(user)
-    return user
+# @router.put("/change-avatar", response_model=schemas.UserResponse)
+# def change_avatar(user_id: int, avatar_data: schemas.ChangeAvatar, db: Session = Depends(get_db)):
+#     user = db.query(models.User).filter(models.User.id == user_id).first()
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+
+#     user.profile_picture = avatar_data.profile_picture
+#     db.commit()
+#     db.refresh(user)
+#     return user
+
+# @router.put("/change-bio", response_model=schemas.UserResponse)
+# def change_bio(user_id: int, bio_data: schemas.ChangeBio, db: Session = Depends(get_db)):
+#     user = db.query(models.User).filter(models.User.id == user_id).first()
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+
+#     user.biography = bio_data.biography
+#     db.commit()
+#     db.refresh(user)
+#     return user
+
