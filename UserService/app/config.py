@@ -1,9 +1,10 @@
-#file config.py cannot be imported in database.py for unknown reasons
-
 import os
 from dotenv import load_dotenv
 
 load_dotenv("../.env")
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM")
 
 class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL")
