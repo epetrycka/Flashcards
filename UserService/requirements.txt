@@ -8,5 +8,5 @@ pydantic[email]
 cryptography
 alembic
 python-jose[cryptography]
-bcrypt
-jwt
+bcrypt>=4.0.0
+PyJWT
