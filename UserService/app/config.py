@@ -3,6 +3,9 @@ from dotenv import load_dotenv
 
 load_dotenv("../.env")
 
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM")
+
 class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL")
     SECRET_KEY = os.getenv("SECRET_KEY")

@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app import schemas, models
 from app.services import auth
 from app.services.database import SessionLocal
+from fastapi.security import OAuth2PasswordBearer
+from app.services.auth import verify_access_token
 import re
 from app.services.auth import create_refresh_token
 import asyncio
@@ -10,6 +12,8 @@ import websockets
 from app.config import settings
 
 router = APIRouter(prefix="/user", tags=["User"])
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="user/login")
 
 def get_db():
     db = SessionLocal()
@@ -53,12 +57,13 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
     return new_user
 
+# Login user and generate JWT
 @router.post("/login")
 def login_user(user: schemas.UserLogin, db: Session = Depends(get_db), response: Response = None):
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if not db_user or not auth.verify_password(user.password, db_user.hashedPassword):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-
+        
     access_token = create_refresh_token(data={"sub": db_user.email})
     response.set_cookie(key="access_token", value=access_token, httponly=True)
 
@@ -66,17 +71,18 @@ def login_user(user: schemas.UserLogin, db: Session = Depends(get_db), response:
 
     return {"message": "Login successful", "access_token": access_token}
 
+# Get user profile
 @router.get("/profile", response_model=schemas.UserResponse)
-def get_profile(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
+def get_profile(current_user: models.User = Depends(get_current_user)):
+    return current_user
 
 @router.delete("/delete", response_model=schemas.UserResponse)
-def delete_user(user_id: int, confirmation: schemas.UserDelete, db: Session = Depends(get_db)):
+def delete_user(user_id: int, confirmation: schemas.UserDelete, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if not confirmation.confirmation:
         raise HTTPException(status_code=400, detail="Deletion not confirmed")
+    
+    if current_user.id != user_id:
+        raise HTTPException(status_code=400, detail="You can only delete your own account")
     
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
@@ -86,7 +92,6 @@ def delete_user(user_id: int, confirmation: schemas.UserDelete, db: Session = De
     db.commit()
 
     return user
-
 
 # @router.post("/change-password")
 # def change_password(change_data: schemas.ChangePassword, db: Session = Depends(get_db)):
@@ -124,3 +129,4 @@ def delete_user(user_id: int, confirmation: schemas.UserDelete, db: Session = De
 #     db.commit()
 #     db.refresh(user)
 #     return user
+
