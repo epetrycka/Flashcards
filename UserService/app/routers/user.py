@@ -4,7 +4,6 @@ from app import schemas, models
 from app.services import auth
 from app.services.database import SessionLocal
 from fastapi.security import OAuth2PasswordBearer
-from app.services.auth import verify_access_token
 import re
 from app.services.auth import create_refresh_token
 import asyncio
@@ -21,16 +20,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-async def notify_websocket_service(access_token):
-    url = settings.WEBSOCKETS_URL
-    try:
-        async with websockets.connect(url) as websocket:
-            await websocket.send(access_token)
-            response = await websocket.recv()
-            print(f"WebSocket response: {response}")
-    except Exception as e:
-        print(f"Error connecting to WebSocket Service: {e}")
 
 @router.post("/register", response_model=schemas.UserResponse)
 def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -66,8 +55,6 @@ def login_user(user: schemas.UserLogin, db: Session = Depends(get_db), response:
         
     access_token = create_refresh_token(data={"sub": db_user.email})
     response.set_cookie(key="access_token", value=access_token, httponly=True)
-
-    asyncio.create_task(notify_websocket_service(access_token))
 
     return {"message": "Login successful", "access_token": access_token}
 
