@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+  user-service:
+    build:
+      context: UserService
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=mysql+pymysql://root:password@db:3306/flashcards_db
+      - WEBSOCKETS_UR=ws://websocket-service:8765
+      - SECRET_KEY=fc711763ba8e6c998dce1d009b24a2a3b6c94b345ab5f428df79caef3ccd2dd3
+      - ALGORITHM=HS256
+      - REFRESH_TOKEN_EXPIRE_DAYS=1
+      - RABBITMQ_URL=amqp://guest:guest@localhost:5672/
+      - DEBUG=true
+
+  websocket-service:
+    build:
+      context: WebSocketService
+    ports: 
+      - "8765:8765"
+    depends_on:
+      - db
+      - user-service
+    environment:
+      - SECRET_KEY=fc711763ba8e6c998dce1d009b24a2a3b6c94b345ab5f428df79caef3ccd2dd3
+      - ALGORITHM=HS256
+      - SESSION_TIMEOUT=3600
+  db:
+    image: mysql:8.0
+    container_name: users-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: flashcards_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+  
+volumes:
+  db_data:
