@@ -7,10 +7,5 @@ python-dotenv
 pydantic[email]
 cryptography
 alembic
-<<<<<<< HEAD
-python-jose[cryptography]
-bcrypt>=4.0.0
-=======
 websockets
->>>>>>> main
 PyJWT

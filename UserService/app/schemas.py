@@ -10,6 +10,19 @@ class UserBase(BaseModel):
     lastname: str
     profile_picture: Optional[str] = None
     biography: Optional[str] = None
+    password: str = Field(..., min_length=8, max_length=20)
+
+    @validator('password')
+    def password_complexity(cls, value):
+        if not re.search(r"\d", value):
+            raise ValueError("Password must contain at least one digit.")
+        if not re.search(r"[A-Z]", value):
+            raise ValueError("Password must contain at least one uppercase letter.")
+        if not re.search(r"[a-z]", value):
+            raise ValueError("Password must contain at least one lowercase letter.")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", value):
+            raise ValueError("Password must contain at least one special character.")
+        return value
 
     @validator('nickname')
     def nickname_valid(cls, value):
@@ -38,30 +51,6 @@ class UserCreate(UserBase):
     email: str
     nickname: str
     password: str = Field(..., min_length=8, max_length=20)
-
-    # @validator('nickname')
-    # def nickname_valid(cls, value):
-    #     if not value.isalnum():
-    #         raise ValueError("Nickname must contain only letters and numbers.")
-    #     return value
-
-    # @validator('firstname', 'lastname')
-    # def name_is_alpha(cls, value):
-    #     if not value.isalpha():
-    #         raise ValueError("First name and last name must contain only letters.")
-    #     return value
-
-    @validator('password')
-    def password_complexity(cls, value):
-        if not re.search(r"\d", value):
-            raise ValueError("Password must contain at least one digit.")
-        if not re.search(r"[A-Z]", value):
-            raise ValueError("Password must contain at least one uppercase letter.")
-        if not re.search(r"[a-z]", value):
-            raise ValueError("Password must contain at least one lowercase letter.")
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", value):
-            raise ValueError("Password must contain at least one special character.")
-        return value
     
 class UserResponse(BaseModel):
     id: int
@@ -104,5 +93,5 @@ class UserDelete(BaseModel):
 # class ChangeAvatar(BaseModel):
 #     profile_picture: str
 
-# class ChangeBio(BaseModel):
+# class ChangeBio(UserBase):
 #     biography: str
