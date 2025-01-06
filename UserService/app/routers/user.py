@@ -27,9 +27,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
     """
     try:
         access_token = request.cookies.get("access_token")
-        print(access_token)
         refresh_token = request.cookies.get("refresh_token")
-        print(refresh_token)
 
         if not access_token:
             raise HTTPException(
@@ -39,9 +37,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
         
         try:
             user_id = verify_access_token(access_token)
-            print(user_id)
         except Exception as e:
-            print(f"Exception??? {e}")
             if refresh_token:
                 try:
                     access_token = refresh_access_token(refresh_token)
@@ -61,7 +57,6 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
 
         user = db.query(models.User).filter(models.User.id == user_id).first()
 
-        print(user)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -85,10 +80,7 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
     if db.query(models.User).filter(models.User.nickname == user.nickname).first():
         raise HTTPException(status_code=400, detail="Nickname already taken")
-    
-    # if not re.match(r'^[a-zA-Z0-9]+$', user.nickname):
-    #     raise HTTPException(status_code=400, detail="Nickname must contain only letters and numbers.")
-    
+
     new_user = models.User(
         nickname=user.nickname,
         email=user.email,
@@ -107,8 +99,7 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 def login_user(user: schemas.UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if not db_user or not auth.verify_password(user.password, db_user.hashedPassword):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-        
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")       
     access_token, refresh_token = auth.generate_tokens(str(db_user.id))
     response = JSONResponse(content={"message": "Login successful"})
     response.set_cookie(key="access_token", value=access_token, httponly=True)
@@ -120,14 +111,13 @@ def get_profile(current_user: models.User = Depends(get_current_user)):
     return current_user
 
 @router.delete("/delete", response_model=schemas.UserResponse)
-def delete_user(user_id: int, confirmation: schemas.UserDelete, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def delete_user(confirmation: schemas.UserDelete, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if not confirmation.confirmation:
         raise HTTPException(status_code=400, detail="Deletion not confirmed")
     
-    if current_user.id != user_id:
-        raise HTTPException(status_code=400, detail="You can only delete your own account")
-    
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    user_id = int(current_user.id)
+
+    user = db.query(models.User).filter(models.User.id ==  user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -136,20 +126,20 @@ def delete_user(user_id: int, confirmation: schemas.UserDelete, db: Session = De
 
     return user
 
-# @router.post("/change-password")
-# def change_password(change_data: schemas.ChangePassword, db: Session = Depends(get_db)):
-#     user = db.query(models.User).filter(models.User.email == change_data.email).first()
+@router.post("/change-password")
+def change_password(change_data: schemas.ChangePassword, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    user = db.query(models.User).filter(models.User.id == current_user.id).first()
     
-#     if not user or not auth.verify_password(change_data.old_password, user.hashedPassword):
-#         raise HTTPException(status_code=400, detail="Incorrect old password")
+    if not user or not auth.verify_password(change_data.old_password, user.hashedPassword):
+        raise HTTPException(status_code=400, detail="Incorrect old password")
 
-#     hashed_new_password = auth.hash_password(change_data.new_password)
+    hashed_new_password = auth.hash_password(change_data.new_password)
 
-#     user.hashedPassword = hashed_new_password
-#     db.commit()
-#     db.refresh(user)
+    user.hashedPassword = hashed_new_password
+    db.commit()
+    db.refresh(user)
     
-#     return {"message": "Password updated successfully"}
+    return {"message": "Password updated successfully"}
 
 # @router.put("/change-avatar", response_model=schemas.UserResponse)
 # def change_avatar(user_id: int, avatar_data: schemas.ChangeAvatar, db: Session = Depends(get_db)):
