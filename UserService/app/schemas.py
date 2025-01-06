@@ -32,24 +32,24 @@ class UserBase(BaseModel):
     class Config:
         orm_mode = True
 
-class UserCreate(BaseModel):
+class UserCreate(UserBase):
     firstname: str
     lastname: str
     email: str
     nickname: str
     password: str = Field(..., min_length=8, max_length=20)
 
-    @validator('nickname')
-    def nickname_valid(cls, value):
-        if not value.isalnum():
-            raise ValueError("Nickname must contain only letters and numbers.")
-        return value
+    # @validator('nickname')
+    # def nickname_valid(cls, value):
+    #     if not value.isalnum():
+    #         raise ValueError("Nickname must contain only letters and numbers.")
+    #     return value
 
-    @validator('firstname', 'lastname')
-    def name_is_alpha(cls, value):
-        if not value.isalpha():
-            raise ValueError("First name and last name must contain only letters.")
-        return value
+    # @validator('firstname', 'lastname')
+    # def name_is_alpha(cls, value):
+    #     if not value.isalpha():
+    #         raise ValueError("First name and last name must contain only letters.")
+    #     return value
 
     @validator('password')
     def password_complexity(cls, value):
@@ -63,7 +63,7 @@ class UserCreate(BaseModel):
             raise ValueError("Password must contain at least one special character.")
         return value
     
-class UserResponse(UserBase):
+class UserResponse(BaseModel):
     id: int
     role: str
     created_at: datetime
@@ -72,32 +72,10 @@ class UserResponse(UserBase):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
-
-class UserUpdate(BaseModel):
-    nickname: Optional[str] = None
-    email: Optional[EmailStr] = None
-    firstname: Optional[str] = None
-    lastname: Optional[str] = None
-    profile_picture: Optional[str] = None
-    biography: Optional[str] = None
-
-    @validator('nickname', always=True)
-    def nickname_valid(cls, value):
-        if value and not value.isalnum():
-            raise ValueError("Nickname must contain only letters and numbers.")
-        return value
-
-    @validator('firstname', 'lastname', always=True)
-    def name_is_alpha(cls, value):
-        if value and not value.isalpha():
-            raise ValueError("First name and last name must contain only letters.")
-        return value
-
-    @validator('biography', always=True)
-    def biography_length(cls, value):
-        if value and len(value) > 200:
-            raise ValueError("Biography must be no longer than 200 characters.")
-        return value
+    
+class AccessResponse(BaseModel):
+    access: str
+    refresh: str
 
 class ChangePassword(BaseModel):
     email: str
@@ -123,8 +101,8 @@ class ChangePassword(BaseModel):
 class UserDelete(BaseModel):
     confirmation: bool
 
-class ChangeAvatar(BaseModel):
-    profile_picture: str
+# class ChangeAvatar(BaseModel):
+#     profile_picture: str
 
-class ChangeBio(BaseModel):
-    biography: str
+# class ChangeBio(BaseModel):
+#     biography: str

@@ -10,6 +10,10 @@ services:
       - db
     environment:
       DATABASE_URL: mysql+pymysql://root:password@db:3306/flashcards_db
+      ALGORITHM: "HS256"
+      SECRET_KEY: "ycrdzA8n0p0MA1h3+mJz8HKxHA94QK7lbXIEXZuu4mQ="
+      ACCESS_TOKEN_EXPIRES_IN: 3600
+      REFRESH_TOKEN_EXPIRES_IN: 86400
 
   db:
     image: mysql:8.0

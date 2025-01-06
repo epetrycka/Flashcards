@@ -11,6 +11,6 @@ def startup():
     print("Starting application...")
     create_tables()
 
-@app.get("/")
+@app.get("/user")
 def root():
     return {"message" : "UserService is running"}

@@ -1,14 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.orm import Session
 from app import schemas, models
 from app.services import auth
 from app.services.database import SessionLocal
 from fastapi.security import OAuth2PasswordBearer
 import re
-from app.services.auth import create_refresh_token
-import asyncio
-import websockets
-from app.config import settings
+from app.services.auth import verify_access_token
+from app.services.auth import refresh_access_token
+from fastapi.responses import JSONResponse
 
 router = APIRouter(prefix="/user", tags=["User"])
 
@@ -21,6 +20,64 @@ def get_db():
     finally:
         db.close()
 
+def get_current_user(request: Request, db: Session = Depends(get_db)):
+    """
+    Pobiera aktualnego użytkownika na podstawie ciasteczka `access_token`.
+    Jeśli access_token jest nieaktualny, próbuje użyć `refresh_token` do odświeżenia.
+    """
+    try:
+        access_token = request.cookies.get("access_token")
+        print(access_token)
+        refresh_token = request.cookies.get("refresh_token")
+        print(refresh_token)
+
+        if not access_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Access token missing"
+            )
+        
+        try:
+            user_id = verify_access_token(access_token)
+            print(user_id)
+        except Exception as e:
+            print(f"Exception??? {e}")
+            if refresh_token:
+                try:
+                    access_token = refresh_access_token(refresh_token)
+                    response = JSONResponse(content={"message": "Token refreshed"})
+                    response.set_cookie(key="access_token", value=access_token, httponly=True)
+                    user_id = verify_access_token(access_token)
+                except Exception:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Refresh token invalid or expired"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Access token expired and no refresh token provided"
+                )
+
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+
+        print(user)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        return user
+
+    except HTTPException as e:
+        raise e
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token or expired"
+        )
+
 @router.post("/register", response_model=schemas.UserResponse)
 def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     if db.query(models.User).filter(models.User.email == user.email).first():
@@ -29,8 +86,8 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     if db.query(models.User).filter(models.User.nickname == user.nickname).first():
         raise HTTPException(status_code=400, detail="Nickname already taken")
     
-    if not re.match(r'^[a-zA-Z0-9]+$', user.nickname):
-        raise HTTPException(status_code=400, detail="Nickname must contain only letters and numbers.")
+    # if not re.match(r'^[a-zA-Z0-9]+$', user.nickname):
+    #     raise HTTPException(status_code=400, detail="Nickname must contain only letters and numbers.")
     
     new_user = models.User(
         nickname=user.nickname,
@@ -46,19 +103,18 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
     return new_user
 
-# Login user and generate JWT
 @router.post("/login")
-def login_user(user: schemas.UserLogin, db: Session = Depends(get_db), response: Response = None):
+def login_user(user: schemas.UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if not db_user or not auth.verify_password(user.password, db_user.hashedPassword):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
         
-    access_token = create_refresh_token(data={"sub": db_user.email})
+    access_token, refresh_token = auth.generate_tokens(str(db_user.id))
+    response = JSONResponse(content={"message": "Login successful"})
     response.set_cookie(key="access_token", value=access_token, httponly=True)
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True)
+    return response
 
-    return {"message": "Login successful", "access_token": access_token}
-
-# Get user profile
 @router.get("/profile", response_model=schemas.UserResponse)
 def get_profile(current_user: models.User = Depends(get_current_user)):
     return current_user
